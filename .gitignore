@@ -1,0 +1,13 @@
+node_modules/
+.env
+!.env.example
+
+# separate repos, managed independently
+restaurant-billing-backend/
+restaurant-billing-frontend/
+*.log
+logs/
+public/uploads/*
+!public/uploads/.gitkeep
+.next/
+.DS_Store
