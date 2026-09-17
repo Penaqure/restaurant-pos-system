@@ -25,11 +25,20 @@ services:
       NODE_ENV: production
       PORT: 5000
       DATABASE_URL: postgres://${POSTGRES_USER:-billing_user}:${POSTGRES_PASSWORD:-billing_pass}@postgres:5432/${POSTGRES_DB:-restaurant_billing}
+      # The bundled postgres service above doesn't have SSL enabled, so this
+      # must stay false -- only set DB_SSL=true in .env if DATABASE_URL is
+      # ever pointed at an external Postgres that terminates TLS itself.
+      DB_SSL: ${DB_SSL:-false}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       # CORS origin -- must match the address browsers use to reach the
       # frontend, i.e. the shop server's LAN IP, not "localhost".
       FRONTEND_URL: http://${SERVER_LAN_IP}:3000
+      # This install is plain HTTP on the shop's LAN (see SERVER_LAN_IP
+      # above), so the login cookie can't be marked Secure -- browsers drop
+      # Secure cookies outright over HTTP. Set COOKIE_SECURE=true in .env
+      # only if this is ever put behind a reverse proxy terminating HTTPS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       UPLOAD_DIR: public/uploads
       BILL_NUMBER_PREFIX: ${BILL_NUMBER_PREFIX:-INV}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}

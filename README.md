@@ -41,9 +41,17 @@ cp .env.example .env
 Edit `.env` and set, at minimum:
 - `SERVER_LAN_IP` — the static IP from step 1
 - `POSTGRES_PASSWORD` — a real password
-- `JWT_SECRET` — a long random string (`openssl rand -hex 32` generates one)
+- `JWT_SECRET` — a long random string (`openssl rand -hex 32` generates one).
+  The backend refuses to start if this is left as the placeholder or is
+  under 32 characters.
 - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` — the first login for this
-  install, used to create the shop's owner account from `/platform`
+  install, used to create the shop's owner account from `/platform`.
+  The password needs at least 8 characters with a letter and a number, or
+  startup fails the same way.
+
+Leave `COOKIE_SECURE` and `DB_SSL` at their defaults (`false`) unless
+you're doing something non-standard (HTTPS reverse proxy, external managed
+database) — see the comments above each in `.env.example`.
 
 **4. Build and start everything**
 ```
@@ -142,6 +150,22 @@ Then reprint every table's QR code, since they encoded the old IP.
 Check the backend logs (`docker compose logs backend`) for a Chromium
 launch error. Rebuild the backend image (`docker compose up -d --build
 backend`) — this reinstalls Chromium from scratch.
+
+**Backend container exits immediately on startup**
+Check `docker compose logs backend` for one of two deliberate startup
+guards: `JWT_SECRET` is missing/too short/still the placeholder, or
+`SUPER_ADMIN_PASSWORD` doesn't meet the minimum strength (8+ characters,
+a letter and a number). Fix the value in `.env` and
+`docker compose up -d --build backend`.
+
+**"Too many requests" errors from the app**
+The API rate-limits itself per device — generous for normal use (a few
+hundred requests per 15 minutes per device, tighter specifically on
+login and on the anonymous QR-ordering endpoints) — as brute-force and
+abuse protection. A staff member or customer legitimately hitting it
+during normal use is very unlikely; it clears on its own after the
+window passes (a few minutes), or restart the backend
+(`docker compose restart backend`) to reset it immediately.
 
 **Forgot the super admin password**
 Edit `SUPER_ADMIN_PASSWORD` in `.env`, then `docker compose restart
