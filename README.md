@@ -1,9 +1,9 @@
 # RestroDesk — Shop Installation Guide
 
 Everything needed to run this system (POS, billing, table QR ordering,
-kitchen display, reports) on one machine inside a shop, reachable by every
-staff device and customer phone on that shop's own WiFi — no internet
-dependency once it's running.
+kitchen display, reports, an owner-visible audit log) on one machine inside
+a shop, reachable by every staff device and customer phone on that shop's
+own WiFi — no internet dependency once it's running.
 
 One Docker install = one restaurant business (owner, branches, staff,
 menu, tables all belong to it). A business with several branches still
@@ -88,6 +88,52 @@ use the QR icon on each table card to download or print its code. A
 customer scanning it can browse the menu and order straight to that
 table.
 
+## Kitchen ticket printer (optional)
+
+If the kitchen has a networked thermal printer, a KOT (kitchen order
+ticket) can print automatically the moment an order is placed or items
+are added to one — no manual "Print KOT" click needed. This works with
+any ESC/POS-compatible printer (the vast majority of thermal
+kitchen/receipt printers, Epson-badged or not) reachable on the shop's
+LAN; it talks to the printer directly over the network, not through a
+driver installed on the server machine.
+
+1. Give the printer a fixed IP, the same way the server itself got one —
+   a DHCP reservation in the router, by the printer's MAC address.
+2. In `.env`, set:
+   ```
+   KITCHEN_PRINTER_ENABLED=true
+   KITCHEN_PRINTER_IP=<printer's LAN IP>
+   KITCHEN_PRINTER_PORT=9100
+   ```
+   (9100 is the standard raw-print port nearly every network thermal
+   printer listens on — only change it if the printer's manual says
+   otherwise.)
+3. `docker compose up -d --build backend`.
+
+Leave `KITCHEN_PRINTER_ENABLED=false` (the default) if there's no such
+printer — nothing else changes, and orders are placed exactly as before
+(a manual "Print KOT" button stays available on the Kitchen and order
+detail pages either way). If the printer is ever offline or unreachable,
+placing an order still succeeds normally; the failed print is only noted
+in `logs/error.log` (`kot_printer.unreachable`/`kot_printer.failed`), not
+shown to staff or customers.
+
+## Ask-your-data chat widget
+
+A small floating chat widget, visible only to owners and managers (the
+same boundary the Reports page already enforces — cashiers, waiters, and
+kitchen staff don't see it at all), answers a fixed set of questions
+straight from this shop's own live data — "today's sales", "pending
+bills", "table status", "orders in progress", "top seller today",
+"refunds today" — either by clicking a preset button or typing the
+question in those words. It's plain SQL under the hood, not AI: no
+internet access, no external service, nothing to configure or enable.
+
+Typed questions are matched by keyword, not true language understanding —
+if it doesn't recognize the phrasing, it lists the questions it can
+answer instead of guessing.
+
 ## Day-to-day operation
 
 | Task | Command |
@@ -97,7 +143,7 @@ table.
 | Check everything is actually healthy | `docker compose ps` |
 | View live logs | `docker compose logs -f backend` (or `frontend`) |
 | Restart just one service | `docker compose restart backend` |
-| Back up the database | `docker compose exec postgres pg_dump -U billing_user restaurant_billing > backup.sql` |
+| Take a backup right now | `docker compose exec backend node -e "require('./services/backupService').runBackup()"` |
 
 Every service has a real health check (Postgres via `pg_isready`, backend
 via its `/health` endpoint, frontend via its own HTTP response), so
@@ -110,6 +156,21 @@ brings everything back up automatically after a power cut or reboot, as
 long as Docker itself is set to start on boot:
 ```
 sudo systemctl enable docker
+```
+
+**Automated backups**: the backend takes a full database backup on every
+startup and every 24 hours after, written to
+`restaurant-billing-backend/backups/` on the host (bind-mounted, so they
+survive container rebuilds and `docker compose down`). The 7 most recent
+are kept by default — older ones are deleted automatically. Disable with
+`BACKUP_ENABLED=false` in `.env`, or change how many are kept with
+`BACKUP_RETENTION_COUNT`.
+
+To restore one (this **replaces** all current data — stop and think before
+running it on a live shop):
+```
+docker compose exec -T postgres pg_restore --clean --if-exists -U billing_user -d restaurant_billing \
+  < restaurant-billing-backend/backups/<filename>.dump
 ```
 
 **Application logs beyond `docker compose logs`**: the backend also

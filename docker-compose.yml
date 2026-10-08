@@ -43,11 +43,22 @@ services:
       BILL_NUMBER_PREFIX: ${BILL_NUMBER_PREFIX:-INV}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
+      # A full DB backup runs automatically on startup and every 24h after
+      # (see services/backupService.js) -- BACKUP_ENABLED=false to turn it
+      # off, BACKUP_RETENTION_COUNT to keep more/fewer than the default 7.
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-true}
+      BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-7}
+      # Optional networked kitchen ticket printer -- see "Kitchen ticket
+      # printer" in the README. Disabled (no-op) unless explicitly turned on.
+      KITCHEN_PRINTER_ENABLED: ${KITCHEN_PRINTER_ENABLED:-false}
+      KITCHEN_PRINTER_IP: ${KITCHEN_PRINTER_IP:-}
+      KITCHEN_PRINTER_PORT: ${KITCHEN_PRINTER_PORT:-9100}
     ports:
       - "5000:5000"
     volumes:
       - backend_uploads:/app/public/uploads
       - ./restaurant-billing-backend/logs:/app/logs
+      - ./restaurant-billing-backend/backups:/app/backups
 
   frontend:
     build:
